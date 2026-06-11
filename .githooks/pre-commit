@@ -1,0 +1,12 @@
+#!/bin/sh
+# LoanHub frontend pre-commit hook — type-checks before allowing a commit.
+#
+# Enable once per clone:
+#   git config core.hooksPath .githooks
+#
+# (Upgrade path: swap this for Husky + lint-staged + Prettier if you want
+#  formatting on staged files — see the repo README.)
+set -e
+echo "[pre-commit] Type-checking (tsc --noEmit)..."
+npm run lint
+echo "[pre-commit] Type-check passed."
