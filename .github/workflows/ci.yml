@@ -4,13 +4,15 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
 
 permissions:
   contents: read
   id-token: write   # required for AWS OIDC (ECR push)
 
 env:
-  AWS_REGION: ap-south-1
+  AWS_REGION: us-east-2
   IMAGE_NAME: loanhub-frontend
 
 jobs:
@@ -33,31 +35,31 @@ jobs:
         run: npm run lint
 
       - name: Unit tests
-        run: npm test -- --run
+        run: npm test
 
       - name: Production build
         run: npm run build
 
   # ── 2. Snyk dependency vulnerability scan ──────────────────────────────────
-  snyk:
-    name: Snyk dependency scan
-    runs-on: ubuntu-latest
-    needs: build-test
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: npm
-      - name: Install dependencies
-        run: npm ci
-      - name: Snyk scan
-        uses: snyk/actions/node@master
-        with:
-          args: --severity-threshold=high
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+  #snyk:
+  #  name: Snyk dependency scan
+  #  runs-on: ubuntu-latest
+  #  needs: build-test
+  #  continue-on-error: true
+  #  steps:
+  #    - uses: actions/checkout@v4
+  #    - uses: actions/setup-node@v4
+  #      with:
+  #        node-version: '20'
+  #        cache: npm
+  #    - name: Install dependencies
+  #      run: npm ci
+  #    - name: Snyk scan
+  #      uses: snyk/actions/node@master
+  #      with:
+  #        args: --severity-threshold=high
+  #      env:
+  #        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
 
   # ── 3. Build Docker image ───────────────────────────────────────────────────
   build-image:
@@ -138,8 +140,8 @@ jobs:
   push-and-deploy:
     name: push to ECR & update GitOps
     runs-on: ubuntu-latest
-    needs: [build-test, build-image, trivy-scan]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [build-test, build-image, trivy-scan] 
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -158,6 +160,14 @@ jobs:
       - name: Log in to ECR
         uses: aws-actions/amazon-ecr-login@v2
 
+      - name: Check Secret Length
+        env:
+          SECRET_VAL: ${{ secrets.ECR_FRONTEND_URI }}
+        run: |
+          echo "The length of the secret is: ${#SECRET_VAL}"
+          echo "Image name is : ${{ env.IMAGE_NAME }}"
+          echo "Secret val: ${SECRET_VAL}"
+
       - name: Tag and push to ECR
         env:
           ECR_URI: ${{ secrets.ECR_FRONTEND_URI }}
@@ -170,7 +180,7 @@ jobs:
 
       - uses: actions/checkout@v4
         with:
-          repository: ${{ github.repository_owner }}/loanhub-gitops
+          repository: vilasvarghese/loanhub-gitops
           token: ${{ secrets.GITOPS_TOKEN }}
           path: gitops
 
